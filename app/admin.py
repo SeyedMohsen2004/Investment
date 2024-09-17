@@ -4,6 +4,8 @@ from app.schemas import UserCreateSchema
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from datetime import datetime
 from flask_jwt_extended.exceptions import NoAuthorizationError
+from app.models import User_transaction
+
 admin = Blueprint('admin', __name__)
 
 @admin.route('/register', methods=["POST"])
@@ -96,3 +98,25 @@ def create_level():
     db.session.commit()
 
     return jsonify({"msg": "Level created", "level_id": new_level.id}), 201
+
+@admin.route('/unconfirmed-transactions', methods=['GET'])
+def get_unconfirmed_transactions():
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Query to get all unconfirmed transactions
+    unconfirmed_transactions = User_transaction.query.filter_by(confirmed=False).all()
+
+    # Prepare the response data
+    transactions_data = [{
+        "id": transaction.id,  
+        "type": transaction.type_tran,
+        "amount": transaction.amount,
+        "description": transaction.description,
+        "user_id": transaction.user_id,
+        "request_date": transaction.request_date
+    } for transaction in unconfirmed_transactions]
+
+    return jsonify({"unconfirmed_transactions": transactions_data}), 200

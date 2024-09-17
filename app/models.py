@@ -73,7 +73,7 @@ class Investment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    start_time = db.Column(db.DateTime, nullable=False)
+    start_time = db.Column(db.DateTime)
     profit = db.Column(db.Float, nullable=True)
     cycle_length = db.Column(db.Integer, default=30)
     is_confirmed = db.Column(db.Boolean, default=False)  # Assuming investment must be confirmed
@@ -126,6 +126,7 @@ class Level(db.Model):
 class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
     __tablename__ = 'user_transaction'
     id = db.Column(db.Integer, primary_key=True)
+    type_tran=db.Column(db.String)
     amount = db.Column(db.Float, nullable=False)
     confirmed = db.Column(db.Boolean, default=False)
     confirm_date = db.Column(db.DateTime, nullable=True)

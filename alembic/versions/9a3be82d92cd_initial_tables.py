@@ -53,6 +53,7 @@ def upgrade():
     op.create_table(
         'user_transaction',
         sa.Column('id', sa.Integer(), primary_key=True, nullable=False),
+        sa.Column('type_tran',sa.String(),nullable=False),
         sa.Column('amount', sa.Float(), nullable=False),
         sa.Column('confirmed', sa.Boolean(), default=False),
         sa.Column('confirm_date', sa.DateTime(), nullable=True),
@@ -68,7 +69,7 @@ def upgrade():
         sa.Column('id', sa.Integer(), primary_key=True, nullable=False),
         sa.Column('user_id', sa.Integer(), sa.ForeignKey('user.id'), nullable=False),
         sa.Column('amount', sa.Float(), nullable=False),
-        sa.Column('start_time', sa.DateTime(), nullable=False, default=sa.func.now()),
+        sa.Column('start_time', sa.DateTime()),
         sa.Column('profit', sa.Float(), nullable=True),
         sa.Column('cycle_length', sa.Integer(), nullable=False, default=30),
         sa.Column('is_confirmed', sa.Boolean(), default=False),
