@@ -21,6 +21,7 @@ def register():
     # Check if referral code exists and is valid
     referrer = None
     if referral_code:
+        print(referral_code)
         referrer = User.query.filter_by(referral_code=referral_code).first()
         if not referrer:
             return jsonify({"msg": "Invalid referral code"}), 400
@@ -32,6 +33,7 @@ def register():
     # If referral code is valid, link new user to referrer
     if referrer:
         new_user.referred_by = referrer.id
+        print(new_user.referred_by)
 
     db.session.add(new_user)
     db.session.commit()
@@ -49,8 +51,8 @@ def login():
 
     if user and user.check_password(user_data.password):
         access_token = create_access_token(identity=user.id)
-
-    return jsonify({"msg": "User logind successfully","access_token":access_token}), 401
+        return jsonify({"msg": "User logged in successfully", "access_token": access_token}), 200
+    return jsonify({"msg": "Invalid credentials"}), 401
 
 
 @auth.route('/profile', methods=['GET'])
@@ -68,7 +70,8 @@ def profile():
     response = {
         "username": user.username,
         "referral_code": user.referral_code,
-        "referred_users": referred_users
+        "referred_users": referred_users,
+        "referral_bonus": user.referral_bonus
     }
     return jsonify(response), 200
 
