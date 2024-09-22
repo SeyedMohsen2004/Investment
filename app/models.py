@@ -2,7 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Initialize SQLAlchemy
@@ -16,6 +16,7 @@ class User(db.Model):
     referral_code = db.Column(db.String(50), unique=True, nullable=True)
     referred_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     referrer = db.relationship('User', remote_side=[id], backref=db.backref('referred_users_rel'))
+    referral_bonus = db.Column(db.Float, default=0.0)  # Add this line for referral bonus
 
     def set_password(self, password: str):
         self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode('utf-8')
@@ -74,44 +75,54 @@ class Investment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     start_time = db.Column(db.DateTime)
-    profit = db.Column(db.Float, nullable=True)
+    withdrawable_profit = db.Column(db.Float, default=0)  # New column
     cycle_length = db.Column(db.Integer, default=30)
-    is_confirmed = db.Column(db.Boolean, default=False)  # Deleted in alembic file
     last_withdraw_time = db.Column(db.DateTime, nullable=True)
-    user = db.relationship('User', backref=db.backref('investments'))
+    
+    user = db.relationship('User', backref=db.backref('investments'))  # Relationship intact
+
 
     def get_profit(self):
-        if not self.is_confirmed:
-            return {"msg": "Investment not confirmed"}, 400
+        # Define the daily profit rate (adjust as needed)
+        daily_profit_rate = 0.01   # 01% daily
+
+        # Calculate the number of full cycles completed
         current_time = datetime.utcnow()
-        days_active = (current_time - self.start_time).days
-        if days_active < 0:
-            return {"msg": "Invalid start time"}, 400
-        if self.last_withdraw_time:
-            days_since_last_withdrawal = (current_time - self.last_withdraw_time).days
-            if days_since_last_withdrawal < self.cycle_length:
-                return {"msg": f"Cannot withdraw profit yet. {self.cycle_length}-day cycle not complete."}, 400
-        else:
-            if days_active < self.cycle_length:
-                return {"msg": f"Cannot withdraw profit yet. {self.cycle_length}-day cycle not complete."}, 400
-        daily_rate = 0.001
-        completed_cycles = days_active // self.cycle_length
-        profit = self.amount * ((1 + daily_rate) ** (completed_cycles * self.cycle_length) - 1)
+        time_elapsed = current_time - self.start_time
+        full_cycles_completed = time_elapsed.days // self.cycle_length
+
+        # Calculate total profit earned from completed cycles
+        total_profit = full_cycles_completed * (self.amount * daily_profit_rate * self.cycle_length)
+
+
+        # Withdrawable profit is stored in the `withdrawable_profit` field
+        withdrawable_profit = self.withdrawable_profit + total_profit
+
+        locked_profit = 0
+        locked_days = time_elapsed.days % self.cycle_length
+        if locked_days > 0:
+            locked_profit = locked_days * (self.amount * daily_profit_rate)
+
         return {
-            "amount": self.amount,
-            "profit": profit,
-            "completed_cycles": completed_cycles,
-            "days_active": days_active
+            'amount': self.amount,
+            'profit': withdrawable_profit,
+            'locked_profit': locked_profit
         }
 
-    def withdraw_profit(self):
+    def is_cycle_complete(self):
+        # Check if a full cycle has completed
         current_time = datetime.utcnow()
-        days_active = (current_time - self.start_time).days
-        if days_active < self.cycle_length:
-            return {"msg": "Profit cycle not complete. Cannot withdraw yet."}, 400
-        self.last_withdraw_time = current_time
-        db.session.commit()
-        return {"msg": "Profit successfully withdrawn", "withdrawal_time": current_time}
+        time_elapsed = current_time - self.start_time
+        full_cycles_completed = time_elapsed.days // self.cycle_length
+        return full_cycles_completed > 0
+
+
+    def calculate_withdrawable_profit(self, full_cycles_completed):
+        # Example: calculate based on daily profit of 0.001%
+        daily_rate = 0.01 
+        profit_per_cycle = self.amount * daily_rate * self.cycle_length  # Profit for one full cycle
+        return profit_per_cycle * full_cycles_completed
+
 
 class Level(db.Model):
     __tablename__ = 'level'
@@ -122,6 +133,7 @@ class Level(db.Model):
 
     def __repr__(self):
         return f"<Level {self.id}>"
+    
 
 class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
     __tablename__ = 'user_transaction'
@@ -132,7 +144,8 @@ class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
     confirm_date = db.Column(db.DateTime, nullable=True)
     description = db.Column(db.String)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'))
     request_date = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('user_transactions'))
     admin = db.relationship('Admin', backref=db.backref('user_transactions'))
+
