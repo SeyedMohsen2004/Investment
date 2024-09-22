@@ -4,7 +4,9 @@ from app.schemas import UserCreateSchema
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from datetime import datetime
 from flask_jwt_extended.exceptions import NoAuthorizationError
-from app.models import User_transaction
+from app.models import User_transaction,Investment
+from datetime import timedelta
+from sqlalchemy import and_
 
 admin = Blueprint('admin', __name__)
 
@@ -59,6 +61,55 @@ def verify_admin_token():
     except NoAuthorizationError:
         return jsonify({"msg": "Missing or invalid token"}), 401
 
+
+
+from datetime import datetime, timedelta
+
+# Admin home page API (Summary of investments and profits)
+@admin.route('/home', methods=['GET'])
+@jwt_required()
+def admin_home():
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Get the current time and calculate the 30-day threshold
+    current_time = datetime.utcnow()
+    thirty_days_ago = current_time - timedelta(days=30)
+
+    # Query all investments
+    investments = Investment.query.all()
+
+    # Initialize variables for total amounts and profits
+    total_amount_of_users = 0
+    total_profit_less_than_30_days = 0
+    total_profit_more_than_30_days = 0
+
+    # Loop through all investments and calculate the profits directly
+    for investment in investments:
+        # Sum the total investment amount for all rows
+        total_amount_of_users += investment.amount
+
+        # Get the number of days the investment has been active
+        days_active = (current_time - investment.start_time).days
+
+        # Calculate and categorize profits based on the duration of the investment
+        if days_active < 30:
+            # If investment is active for less than 30 days, add its profit to the "less than 30 days" sum
+            if investment.profit:  # Ensure investment.profit is not None
+                total_profit_less_than_30_days += investment.profit
+        else:
+            # If investment is active for 30 or more days, add its profit to the "more than 30 days" sum
+            if investment.profit:  # Ensure investment.profit is not None
+                total_profit_more_than_30_days += investment.profit
+
+    # Return the response with the summarized data
+    return jsonify({
+        "total_amount_of_users": total_amount_of_users,  # Total of all investment amounts
+        "total_profit_less_than_30_days": total_profit_less_than_30_days,  # Profits for investments < 30 days
+        "total_profit_more_than_30_days": total_profit_more_than_30_days  # Profits for investments >= 30 days
+    }), 200
 
 
 @admin.route('/levels', methods=['GET'])
@@ -120,3 +171,41 @@ def get_unconfirmed_transactions():
     } for transaction in unconfirmed_transactions]
 
     return jsonify({"unconfirmed_transactions": transactions_data}), 200
+
+@admin.route('/confirm-transaction', methods=['POST'])
+def confirm_transaction():
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Get the data from the request
+    data = request.get_json()
+    transaction_id = data.get('transaction_id')
+    confirm = data.get('confirm')
+
+    # Validate the input
+    if transaction_id is None or confirm is None:
+        return jsonify({"msg": "Transaction ID and confirmation status are required"}), 400
+
+    # Find the transaction by ID
+    transaction = User_transaction.query.filter_by(id=transaction_id).first()
+
+    if not transaction:
+        return jsonify({"msg": "Transaction not found"}), 404
+
+    # If confirm is true, update the confirmation status and confirm_date
+    if confirm:
+        transaction.confirmed = True
+        transaction.confirm_date = datetime.utcnow()  # Set confirmation date to current time
+    else:
+        transaction.confirmed = False  # Set confirmation to False if not confirmed
+
+    db.session.commit()
+
+    return jsonify({
+        "msg": f"Transaction {'confirmed' if confirm else 'not confirmed'} successfully",
+        "transaction_id": transaction.id,
+        "confirmed": transaction.confirmed,
+        "confirm_date": transaction.confirm_date
+    }), 200

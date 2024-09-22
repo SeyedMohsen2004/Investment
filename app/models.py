@@ -76,7 +76,7 @@ class Investment(db.Model):
     start_time = db.Column(db.DateTime)
     profit = db.Column(db.Float, nullable=True)
     cycle_length = db.Column(db.Integer, default=30)
-    is_confirmed = db.Column(db.Boolean, default=False)  # Assuming investment must be confirmed
+    is_confirmed = db.Column(db.Boolean, default=False)  # Deleted in alembic file
     last_withdraw_time = db.Column(db.DateTime, nullable=True)
     user = db.relationship('User', backref=db.backref('investments'))
 
