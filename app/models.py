@@ -148,3 +148,4 @@ class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
     request_date = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('user_transactions'))
     admin = db.relationship('Admin', backref=db.backref('user_transactions'))
+
