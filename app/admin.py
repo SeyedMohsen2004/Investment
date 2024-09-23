@@ -1,13 +1,12 @@
 from flask import Blueprint, request, jsonify
-from app.models import Level, db, Admin
+from app.models import Level, db, Admin, User
 from app.schemas import UserCreateSchema
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
-from datetime import datetime
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from app.models import User_transaction,Investment
 from datetime import timedelta
 from sqlalchemy import and_
-
+from datetime import datetime, timedelta
 admin = Blueprint('admin', __name__)
 
 @admin.route('/register', methods=["POST"])
@@ -62,13 +61,83 @@ def verify_admin_token():
         return jsonify({"msg": "Missing or invalid token"}), 401
 
 
-
-from datetime import datetime, timedelta
-
-# Admin home page API (Summary of investments and profits)
-@admin.route('/home', methods=['GET'])
+@admin.route('/users', methods=['GET'])
 @jwt_required()
-def admin_home():
+def admin_users():
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Get the query parameters for filtering
+    username = request.args.get('username')
+    user_id = request.args.get('user_id')
+
+    # Get the current time and calculate the 30-day threshold
+    current_time = datetime.utcnow()
+
+    # Build the query based on filters
+    query = User.query
+
+    # Apply filters if provided
+    if username:
+        query = query.filter(User.username.ilike(f'%{username}%'))  # Search by username (case-insensitive)
+    
+    if user_id:
+        query = query.filter(User.id == user_id)  # Search by user_id
+
+    # Execute the query to get the filtered users
+    users = query.all()
+
+    # Prepare the list to hold user data with investment information
+    users_data = []
+
+    # Loop through each user and calculate their investments and profits
+    for user in users:
+        # Query all investments for this user
+        investments = Investment.query.filter_by(user_id=user.id).all()
+
+        # Initialize variables for investment amounts and profits
+        total_amount_of_investments = sum([investment.amount for investment in investments])
+        total_profit_less_than_30_days = 0
+        total_profit_more_than_30_days = 0
+
+        # Loop through the user's investments and calculate profits
+        for investment in investments:
+            # Get the number of days the investment has been active
+            days_active = (current_time - investment.start_time).days
+
+            # Calculate the profits based on the duration of the investment
+            profit_data = investment.get_profit()
+            if days_active < 30:
+                total_profit_less_than_30_days += profit_data['profit']
+            else:
+                total_profit_more_than_30_days += profit_data['profit']
+
+        # Prepare the user data with investment and profit details
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "referral_code": user.referral_code,
+            "referred_by": user.referred_by,
+            "referral_bonus": user.referral_bonus,
+            "total_amount_invested": total_amount_of_investments,  # Sum of all investments for the user
+            "total_profit_less_than_30_days": total_profit_less_than_30_days,  # Profits for investments < 30 days
+            "total_profit_more_than_30_days": total_profit_more_than_30_days  # Profits for investments >= 30 days
+        }
+
+        # Add the user data to the list
+        users_data.append(user_data)
+
+    # Return the response with the user data
+    return jsonify({
+        "users": users_data
+    }), 200
+
+
+@admin.route('/users/<int:id>', methods=['GET'])
+@jwt_required()
+def get_user_by_id(id):
     # Verify if the token is from a valid admin
     admin = verify_admin_token()
     if isinstance(admin, tuple):
@@ -78,38 +147,120 @@ def admin_home():
     current_time = datetime.utcnow()
     thirty_days_ago = current_time - timedelta(days=30)
 
-    # Query all investments
-    investments = Investment.query.all()
+    # Query the user by ID
+    user = User.query.filter_by(id=id).first()
 
-    # Initialize variables for total amounts and profits
-    total_amount_of_users = 0
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+
+    # Query all investments for the user
+    investments = Investment.query.filter_by(user_id=user.id).all()
+
+    # Initialize variables for investment amounts and profits
+    total_amount_of_investments = sum([investment.amount for investment in investments])
     total_profit_less_than_30_days = 0
     total_profit_more_than_30_days = 0
 
-    # Loop through all investments and calculate the profits directly
+    # Loop through the user's investments and calculate profits
     for investment in investments:
-        # Sum the total investment amount for all rows
-        total_amount_of_users += investment.amount
-
         # Get the number of days the investment has been active
         days_active = (current_time - investment.start_time).days
 
-        # Calculate and categorize profits based on the duration of the investment
+        # Calculate the profits based on the duration of the investment
+        profit_data = investment.get_profit()
         if days_active < 30:
-            # If investment is active for less than 30 days, add its profit to the "less than 30 days" sum
-            if investment.profit:  # Ensure investment.profit is not None
-                total_profit_less_than_30_days += investment.profit
+            total_profit_less_than_30_days += profit_data['profit']
         else:
-            # If investment is active for 30 or more days, add its profit to the "more than 30 days" sum
-            if investment.profit:  # Ensure investment.profit is not None
-                total_profit_more_than_30_days += investment.profit
+            total_profit_more_than_30_days += profit_data['profit']
 
-    # Return the response with the summarized data
-    return jsonify({
-        "total_amount_of_users": total_amount_of_users,  # Total of all investment amounts
-        "total_profit_less_than_30_days": total_profit_less_than_30_days,  # Profits for investments < 30 days
-        "total_profit_more_than_30_days": total_profit_more_than_30_days  # Profits for investments >= 30 days
-    }), 200
+    # Prepare the response data for the user's profile
+    user_data = {
+        "id": user.id,
+        "username": user.username,
+        # "password_hash": user.password_hash,  # It's advisable not to show passwords in plain text.
+        "total_amount_invested": total_amount_of_investments,
+        "total_profit_less_than_30_days": total_profit_less_than_30_days,
+        "total_profit_more_than_30_days": total_profit_more_than_30_days
+    }
+
+    # Return the user's profile and investment information
+    return jsonify(user_data), 200
+
+
+
+@admin.route('/users/<int:user_id>/deposits', methods=['GET'])
+@jwt_required()
+def get_user_deposits(user_id):
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Query to get all deposit transactions for the specified user
+    deposits = User_transaction.query.filter_by(user_id=user_id, type_tran='deposit').all()
+
+    # Prepare the response data
+    deposit_data = [{
+        "id": deposit.id,
+        "amount": deposit.amount,
+        "description": deposit.description,
+        "confirmed": deposit.confirmed,
+        "confirm_date": deposit.confirm_date,
+        "request_date": deposit.request_date
+    } for deposit in deposits]
+
+    return jsonify({"deposits": deposit_data}), 200
+
+
+@admin.route('/users/<int:user_id>/withdraw', methods=['GET'])
+@jwt_required()
+def get_user_withdrawals(user_id):
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Query to get all withdrawal transactions for the specified user
+    withdrawals = User_transaction.query.filter_by(user_id=user_id, type_tran='withdraw').all()
+
+    # Prepare the response data
+    withdraw_data = [{
+        "id": withdraw.id,
+        "amount": withdraw.amount,
+        "description": withdraw.description,
+        "confirmed": withdraw.confirmed,
+        "confirm_date": withdraw.confirm_date,
+        "request_date": withdraw.request_date
+    } for withdraw in withdrawals]
+
+    return jsonify({"withdrawals": withdraw_data}), 200
+
+
+
+@admin.route('/users/<int:user_id>/transactions', methods=['GET'])
+@jwt_required()
+def get_user_transactions(user_id):
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
+
+    # Query to get all transactions for the specified user
+    transactions = User_transaction.query.filter_by(user_id=user_id).all()
+
+    # Prepare the response data
+    transaction_data = [{
+        "id": transaction.id,
+        "type": transaction.type_tran,
+        "amount": transaction.amount,
+        "description": transaction.description,
+        "confirmed": transaction.confirmed,
+        "confirm_date": transaction.confirm_date,
+        "request_date": transaction.request_date
+    } for transaction in transactions]
+
+    return jsonify({"transactions": transaction_data}), 200
+
 
 
 @admin.route('/levels', methods=['GET'])
@@ -172,7 +323,9 @@ def get_unconfirmed_transactions():
 
     return jsonify({"unconfirmed_transactions": transactions_data}), 200
 
+
 @admin.route('/confirm-transaction', methods=['POST'])
+@jwt_required()  # Ensure only authenticated admins can access this route
 def confirm_transaction():
     # Verify if the token is from a valid admin
     admin = verify_admin_token()
@@ -194,18 +347,41 @@ def confirm_transaction():
     if not transaction:
         return jsonify({"msg": "Transaction not found"}), 404
 
-    # If confirm is true, update the confirmation status and confirm_date
+    # If confirm is true, update the confirmation status, confirm_date, and admin_id
     if confirm:
         transaction.confirmed = True
         transaction.confirm_date = datetime.utcnow()  # Set confirmation date to current time
+        transaction.admin_id = admin.id  # Set the admin who confirmed the transaction
+
+        # Create a new Investment entry based on the transaction details
+        new_investment = Investment(
+            user_id=transaction.user_id,
+            amount=transaction.amount,
+            start_time=datetime.utcnow(),  # Set the start time to now or a specific time
+        )
+        
+        # Add the new investment to the session
+        db.session.add(new_investment)
+
     else:
         transaction.confirmed = False  # Set confirmation to False if not confirmed
-
+    
     db.session.commit()
+
+    # Handle referral bonus logic if applicable
+    user = User.query.get(transaction.user_id)
+    if user.referred_by and Investment.query.filter_by(user_id=3).count() == 1:
+        # Award referral bonus to the referrer
+        referrer = User.query.get(user.referred_by)
+        if referrer:
+            referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
+            db.session.commit()
 
     return jsonify({
         "msg": f"Transaction {'confirmed' if confirm else 'not confirmed'} successfully",
         "transaction_id": transaction.id,
         "confirmed": transaction.confirmed,
-        "confirm_date": transaction.confirm_date
+        "confirm_date": transaction.confirm_date,
+        "admin_id": transaction.admin_id  # Return the admin ID who confirmed the transaction
     }), 200
+
