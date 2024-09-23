@@ -32,12 +32,12 @@ def create_investment():
 
     #NOTE to send this on admin side to check it if every think is okey...
      # Check if the user was referred by someone and this is their first deposit
-    if user.referred_by and Investment.query.filter_by(user_id=current_user_id).count() == 0:
-        # Award referral bonus to the referrer
-        referrer = User.query.get(user.referred_by)
-        if referrer:
-            referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
-            db.session.commit()
+    # if user.referred_by and Investment.query.filter_by(user_id=current_user_id).count() == 0:
+    #     # Award referral bonus to the referrer
+    #     referrer = User.query.get(user.referred_by)
+    #     if referrer:
+    #         referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
+    #         db.session.commit()
 
 
     return jsonify({"msg": "Deposit request logged successfully", "transaction_id": new_transaction.id}), 201
