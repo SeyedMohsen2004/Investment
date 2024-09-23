@@ -42,6 +42,29 @@ def create_investment():
 
     return jsonify({"msg": "Deposit request logged successfully", "transaction_id": new_transaction.id}), 201
 
+
+@investment.route('/transactions', methods=['GET'])
+@jwt_required()
+def get_transaction_history():
+    current_user_id = get_jwt_identity()
+    transactions = User_transaction.query.filter_by(user_id=current_user_id).all()
+
+    # Prepare a response with a list of transactions
+    transaction_list = [
+        {
+            'id': transaction.id,
+            'type': transaction.type_tran,
+            'amount': transaction.amount,
+            'confirmed': transaction.confirmed,
+            'confirm_date': transaction.confirm_date,
+            'description': transaction.description,
+            'request_date': transaction.request_date
+        }
+        for transaction in transactions
+    ]
+
+    return jsonify(transaction_list), 200
+
 # Route to get total profit
 @investment.route('/profit', methods=['GET'])
 @jwt_required()
