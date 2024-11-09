@@ -1,10 +1,14 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import Investment, User_transaction, db
+from app.models import Investment, User_transaction, db, Level
 from datetime import datetime
 from app.models import User
 
 investment = Blueprint('investment', __name__)
+
+def generate_wallet_address():
+    return "TGwEZZC73VAefZrETHeLYKCvQn1GY6pmQa"  # Placeholder for generated wallet address
+
 
 # Route to create an investment
 @investment.route('/create', methods=['POST'])
@@ -19,28 +23,60 @@ def create_investment():
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
 
-    # Log the deposit request in the user_transactions table
+    # Check if this is the user's first confirmed investment
+    first_investment_amount = User_transaction.get_first_investment_amount(current_user_id)
+
+    # If no previous confirmed investment is found, this is the first investment
+    is_first_investment = first_investment_amount == 0.0
+
+    # Enforce a minimum amount of 100 Tether only if it is the first investment
+    if is_first_investment and amount < 100:
+        return jsonify({"msg": "Minimum investment amount is 100 Tether for the first investment"}), 400
+
+    # Generate a wallet address for the transaction
+    wallet_address = generate_wallet_address()
+
+    # Log the deposit request in User_transaction table
     new_transaction = User_transaction(
         user_id=current_user_id,
         type_tran="deposit",
         amount=amount,
-        description="Deposit request"
+        description="Deposit request",
     )
     db.session.add(new_transaction)
     db.session.commit()
 
+    # Handle user level change if necessary
+    user.handle_level_change()
 
-    #NOTE to send this on admin side to check it if every think is okey...
-     # Check if the user was referred by someone and this is their first deposit
-    # if user.referred_by and Investment.query.filter_by(user_id=current_user_id).count() == 0:
-    #     # Award referral bonus to the referrer
-    #     referrer = User.query.get(user.referred_by)
-    #     if referrer:
-    #         referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
-    #         db.session.commit()
+    return jsonify({
+        "msg": "Deposit request logged successfully",
+        "transaction_id": new_transaction.id,
+        "wallet_address": wallet_address
+    }), 201
 
 
-    return jsonify({"msg": "Deposit request logged successfully", "transaction_id": new_transaction.id}), 201
+@investment.route('/submit_hash', methods=['POST'])
+@jwt_required()
+def submit_hash():
+    data = request.get_json()
+    hash_code = data.get('hash_code')
+    transaction_id = data.get('transaction_id')
+
+    if not hash_code or not transaction_id:
+        return jsonify({"msg": "Missing hash code or transaction ID"}), 400
+
+    # Retrieve the transaction
+    transaction = User_transaction.query.get(transaction_id)
+    
+    if not transaction:
+        return jsonify({"msg": "Transaction not found"}), 404
+
+    # Update the transaction with the hash code (without confirming it yet)
+    transaction.hash_code = hash_code
+    db.session.commit()
+
+    return jsonify({"msg": "Hash code submitted successfully", "transaction_id": transaction.id}), 200
 
 
 @investment.route('/transactions', methods=['GET'])
@@ -101,6 +137,28 @@ def get_total_profit():
         "total_investments": len(investments)
     }), 200
 
+
+
+
+@investment.route('/levels', methods=['GET'])
+def get_levels():
+    # Query all levels from the database
+    levels = Level.query.all()
+
+    # Format the response data
+    levels_data = []
+    for level in levels:
+        level_info = {
+            "id": level.id,
+            "min_amount": level.min_amount,
+            "min_referred_users": level.min_active_users,
+            "profit_multiplier": level.profit_multiplier,
+        }
+        levels_data.append(level_info)
+
+    # Send JSON response with level details
+    return jsonify({"levels": levels_data}), 200
+
 # Route to handle withdrawals
 @investment.route('/withdraw', methods=['POST'])
 @jwt_required()
@@ -120,6 +178,8 @@ def withdraw_profit(user_id, amount_to_withdraw):
     investments = Investment.query.filter(
         Investment.user_id == user_id
     ).order_by(Investment.start_time).all()
+
+    user = User.query.get(user_id)
 
     total_withdrawn = 0
     remaining_amount = amount_to_withdraw
@@ -188,7 +248,10 @@ def withdraw_profit(user_id, amount_to_withdraw):
                 })
 
                 db.session.commit()
-
+    
+    #NOTE the admin side sould handel this
+    #check if the user level is needed to be change
+    user.handle_level_change()
     return {
         "msg": "Withdrawal completed",
         "total_withdrawn": total_withdrawn,
