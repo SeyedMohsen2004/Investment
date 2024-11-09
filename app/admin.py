@@ -91,7 +91,7 @@ def admin_users():
             days_active = (current_time - investment.start_time).days
             profit_data = investment.get_profit()
             if days_active < 30:
-                total_profit_less_than_30_days += profit_data['profit']
+                total_profit_less_than_30_days += profit_data['locked_profit']
             else:
                 total_profit_more_than_30_days += profit_data['profit']
 
@@ -354,7 +354,7 @@ def reply_to_message(parent_message_id):
 
     # پیدا کردن کاربر مرتبط با پیام والد
     user_id = parent_message.user_id
-
+  
     # ایجاد پیام جدید به عنوان پاسخ
     message = Message(
         user_id=user_id,  # ID کاربر
