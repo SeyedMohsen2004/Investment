@@ -42,7 +42,13 @@ def upgrade() -> None:
     sa.Column('referral_code', sa.String(length=50), nullable=True),
     sa.Column('referred_by', sa.Integer(), nullable=True),
     sa.Column('referral_bonus', sa.Float(), nullable=True),
+    sa.Column('current_level_id', sa.Integer(), nullable=True),  # New column
+    sa.Column('previous_level_id', sa.Integer(), nullable=True),  # New column
     sa.ForeignKeyConstraint(['referred_by'], ['user.id'], ),
+    sa.ForeignKeyConstraint(['current_level_id'], ['level.id']),  # New foreign key constraint
+    sa.ForeignKeyConstraint(['previous_level_id'], ['level.id']),  # New foreign key constraint
+
+    
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('referral_code'),
     sa.UniqueConstraint('username')
@@ -68,6 +74,7 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('admin_id', sa.Integer(), nullable=True),
     sa.Column('request_date', sa.DateTime(), nullable=True),
+    sa.Column('hash_code', sa.String(length=100), nullable=True),
     sa.ForeignKeyConstraint(['admin_id'], ['admin.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')

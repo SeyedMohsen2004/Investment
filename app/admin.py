@@ -337,7 +337,17 @@ def get_messages():
     # Commit the changes to the database
     db.session.commit()
 
-    return jsonify({"messages": messages_data}), 200
+    # Handle referral bonus logic if applicable
+    user = User.query.get(transaction.user_id)
+    if user.referred_by and Investment.query.filter_by(user_id=3).count() == 1:
+        # Award referral bonus to the referrer
+        referrer = User.query.get(user.referred_by)
+        if referrer:
+            referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
+            db.session.commit()
+            #slam adash ba ejaze mn ye founctioni inja add mikonam
+            #in founction be khater ine ke age level tagir kard oono be man bege ereadat
+            referrer.handle_level_change()
 
 @admin.route('/messages/<int:parent_message_id>', methods=['POST'])
 @jwt_required()
