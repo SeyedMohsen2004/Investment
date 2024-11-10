@@ -1,3 +1,4 @@
+# Seyed Mohsen Moosavi & Ali Amri
 from flask import Blueprint, request, jsonify
 from app.models import Level, db, Admin, User
 from app.schemas import UserCreateSchema
@@ -305,25 +306,20 @@ def create_level():
 @admin.route('/levels/<int:level_id>', methods=['PUT'])
 @jwt_required()
 def update_level(level_id):
-    # تأیید هویت ادمین
     admin = verify_admin_token()
     if isinstance(admin, tuple):
-        return admin  # اگر یک خطا برگرداند
+        return admin  
 
-    # پیدا کردن سطح مورد نظر با شناسه داده شده
     level = Level.query.get(level_id)
     if not level:
         return jsonify({"msg": "Level not found"}), 404
 
-    # دریافت داده‌های جدید برای به‌روزرسانی
     data = request.get_json()
 
-    # به‌روزرسانی هر فیلد در صورتی که مقدار جدید ارسال شده باشد
     level.min_active_users = data.get('min_active_users', level.min_active_users)
     level.min_amount = data.get('min_amount', level.min_amount)
     level.profit_multiplier = data.get('profit_multiplier', level.profit_multiplier)
 
-    # ذخیره تغییرات
     db.session.commit()
 
     return jsonify({"msg": "Level updated successfully", "level_id": level.id}), 200
@@ -399,7 +395,7 @@ def confirm_transaction():
 
     # Handle referral bonus logic if applicable
     user = User.query.get(transaction.user_id)
-    if user.referred_by and Investment.query.filter_by(user_id=3).count() == 1:
+    if user.referred_by and Investment.query.filter_by(user_id=transaction.user_id).count() == 1:
         # Award referral bonus to the referrer
         referrer = User.query.get(user.referred_by)
         if referrer:
@@ -407,8 +403,8 @@ def confirm_transaction():
             db.session.commit()
             #slam adash ba ejaze mn ye founctioni inja add mikonam
             #in founction be khater ine ke age level tagir kard oono be man bege ereadat
-            referrer.handle_level_change()
-
+            
+    referrer.handle_level_change()
     return jsonify({
         "msg": f"Transaction {'confirmed' if confirm else 'not confirmed'} successfully",
         "transaction_id": transaction.id,
@@ -435,7 +431,6 @@ def get_messages():
 
         user = User.query.filter_by(id=message.user_id).first()  # Find the associated user
 
-        # Prepare the message and user info if user exists
         if user:
             messages_data.append({
                 "message_id": message.message_id,
@@ -445,7 +440,6 @@ def get_messages():
                 "created_at": message.date
             })
 
-    # Commit the changes to the database
     db.session.commit()
 
     return jsonify({"messages": messages_data}), 200
@@ -460,16 +454,13 @@ def reply_to_message(parent_message_id):
     data = request.json
     content = data.get('content')
 
-    # بررسی وجود پیام اصلی
     parent_message = Message.query.get_or_404(parent_message_id)
 
-    # پیدا کردن کاربر مرتبط با پیام والد
     user_id = parent_message.user_id
   
-    # ایجاد پیام جدید به عنوان پاسخ
     message = Message(
-        user_id=user_id,  # ID کاربر
-        admin_id=admin.id,  # ID ادمین
+        user_id=user_id,  
+        admin_id=admin.id,  
         content=content,
         parent_message_id=parent_message.message_id
     )
@@ -499,15 +490,12 @@ def delete_message(message_id):
 @admin.route('/investments', methods=['GET'])
 @jwt_required()
 def get_all_investments():
-    # تأیید هویت ادمین
     admin = verify_admin_token()
-    if isinstance(admin, dict):  # اگر یک خطا برگرداند
+    if isinstance(admin, dict):  
         return admin
     
-    # گرفتن تمام سرمایه‌گذاری‌ها از پایگاه داده
     investments = Investment.query.all()
     
-    # ساختن JSON برای تمام سرمایه‌گذاری‌ها
     investments_data = []
     for investment in investments:
         investments_data.append({
@@ -526,22 +514,18 @@ def get_all_investments():
 @admin.route('/investment/update', methods=['PUT'])
 @jwt_required()
 def update_investment():
-    # تأیید هویت ادمین
     admin = verify_admin_token()
-    if isinstance(admin, dict):  # اگر یک خطا برگرداند
+    if isinstance(admin, dict):  
         return admin
     
-    # گرفتن اطلاعات از درخواست
     data = request.get_json()
     investment_id = data.get('id')
     new_amount = data.get('amount')
     
-    # پیدا کردن سرمایه‌گذاری با شناسه داده شده
     investment = Investment.query.get(investment_id)
     if not investment:
         return jsonify({"msg": "Investment not found"}), 404
 
-    # به‌روزرسانی مقدار و تاریخ شروع
     investment.amount = new_amount
     investment.start_time = datetime.utcnow()
     

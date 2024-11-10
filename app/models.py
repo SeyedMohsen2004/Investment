@@ -1,3 +1,4 @@
+# Seyed Mohsen Moosavi & Ali Amri
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import random
@@ -222,15 +223,15 @@ class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
     user = db.relationship('User', backref=db.backref('user_transactions'))
     admin = db.relationship('Admin', backref=db.backref('user_transactions'))
 class Message(db.Model):
-    __tablename__ = 'message'  # مطمئن شوید که نام جدول صحیح است
+    __tablename__ = 'message'  
     
-    message_id = db.Column(db.Integer, primary_key=True)  # شناسه پیام
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # شناسه کاربر (نویسنده یا گیرنده)
-    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=True)  # شناسه ادمین (نویسنده یا گیرنده)
-    content = db.Column(db.Text, nullable=False)  # محتوای پیام
-    seen = db.Column(db.Boolean, default=False)  # وضعیت خوانده شدن پیام
-    date = db.Column(db.DateTime, default=datetime.utcnow)  # تاریخ و زمان ارسال پیام
-    parent_message_id = db.Column(db.Integer, db.ForeignKey('message.message_id'), nullable=True)  # شناسه پیام اصلی (برای پاسخ‌ها)
+    message_id = db.Column(db.Integer, primary_key=True)  
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=True)  
+    content = db.Column(db.Text, nullable=False)  
+    seen = db.Column(db.Boolean, default=False) 
+    date = db.Column(db.DateTime, default=datetime.utcnow)  
+    parent_message_id = db.Column(db.Integer, db.ForeignKey('message.message_id'), nullable=True)  
 
     
     @classmethod
@@ -252,7 +253,6 @@ class Message(db.Model):
         )
 
         return first_investment.amount if first_investment else 0.0
-    # ارتباطات
-    parent_message = db.relationship('Message', remote_side=[message_id], backref='replies')  # ارتباط با پیام اصلی برای پاسخ‌ها
-    user = db.relationship('User', backref=db.backref('messages', lazy=True))  # ارتباط با جدول کاربر
-    admin = db.relationship('Admin', backref=db.backref('messages', lazy=True))  # ارتباط با جدول ادمین
+    parent_message = db.relationship('Message', remote_side=[message_id], backref='replies')  
+    user = db.relationship('User', backref=db.backref('messages', lazy=True))  
+    admin = db.relationship('Admin', backref=db.backref('messages', lazy=True))  
