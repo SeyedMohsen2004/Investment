@@ -243,11 +243,7 @@ class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
         )
 
         return first_investment.amount if first_investment else 0.0
-    parent_message = db.relationship('Message', remote_side=[message_id], backref='replies')  
-    user = db.relationship('User', backref=db.backref('messages', lazy=True))  
-    admin = db.relationship('Admin', backref=db.backref('messages', lazy=True))  
-
-
+    
 class Message(db.Model):
     __tablename__ = 'message'  
     
@@ -258,3 +254,6 @@ class Message(db.Model):
     seen = db.Column(db.Boolean, default=False) 
     date = db.Column(db.DateTime, default=datetime.utcnow)  
     parent_message_id = db.Column(db.Integer, db.ForeignKey('message.message_id'), nullable=True)  
+    parent_message = db.relationship('Message', remote_side=[message_id], backref='replies')  
+    user = db.relationship('User', backref=db.backref('messages', lazy=True))  
+    admin = db.relationship('Admin', backref=db.backref('messages', lazy=True))  
