@@ -222,16 +222,6 @@ class User_transaction(db.Model):  # Fix class name and add db.Model inheritance
     hash_code = db.Column(db.String(100), nullable=True)
     user = db.relationship('User', backref=db.backref('user_transactions'))
     admin = db.relationship('Admin', backref=db.backref('user_transactions'))
-class Message(db.Model):
-    __tablename__ = 'message'  
-    
-    message_id = db.Column(db.Integer, primary_key=True)  
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  
-    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=True)  
-    content = db.Column(db.Text, nullable=False)  
-    seen = db.Column(db.Boolean, default=False) 
-    date = db.Column(db.DateTime, default=datetime.utcnow)  
-    parent_message_id = db.Column(db.Integer, db.ForeignKey('message.message_id'), nullable=True)  
 
     
     @classmethod
@@ -256,3 +246,15 @@ class Message(db.Model):
     parent_message = db.relationship('Message', remote_side=[message_id], backref='replies')  
     user = db.relationship('User', backref=db.backref('messages', lazy=True))  
     admin = db.relationship('Admin', backref=db.backref('messages', lazy=True))  
+
+
+class Message(db.Model):
+    __tablename__ = 'message'  
+    
+    message_id = db.Column(db.Integer, primary_key=True)  
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=True)  
+    content = db.Column(db.Text, nullable=False)  
+    seen = db.Column(db.Boolean, default=False) 
+    date = db.Column(db.DateTime, default=datetime.utcnow)  
+    parent_message_id = db.Column(db.Integer, db.ForeignKey('message.message_id'), nullable=True)  
