@@ -48,7 +48,7 @@ def create_investment():
     db.session.commit()
 
     # Handle user level change if necessary
-    user.handle_level_change()
+    # user.handle_level_change()
 
     return jsonify({
         "msg": "Deposit request logged successfully",
