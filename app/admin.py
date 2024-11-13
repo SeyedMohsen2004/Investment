@@ -387,6 +387,8 @@ def confirm_transaction():
         
         # Add the new investment to the session
         db.session.add(new_investment)
+        #after confirmation it must be checked if the lavel of the user is needed to be up of down.
+        user.handle_level_change()
 
     else:
         transaction.confirmed = False  # Set confirmation to False if not confirmed
@@ -401,10 +403,7 @@ def confirm_transaction():
         if referrer:
             referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
             db.session.commit()
-            #slam adash ba ejaze mn ye founctioni inja add mikonam
-            #in founction be khater ine ke age level tagir kard oono be man bege ereadat
-            
-    referrer.handle_level_change()
+
     return jsonify({
         "msg": f"Transaction {'confirmed' if confirm else 'not confirmed'} successfully",
         "transaction_id": transaction.id,
