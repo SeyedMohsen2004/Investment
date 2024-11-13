@@ -348,6 +348,14 @@ def get_unconfirmed_transactions():
 
     return jsonify({"unconfirmed_transactions": transactions_data}), 200
 
+from flask import Blueprint, request, jsonify
+from app.models import Level, db, Admin, User, User_transaction, Investment, Message
+from app.schemas import UserCreateSchema
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
+from datetime import timedelta, datetime
+from sqlalchemy import and_
+
+admin = Blueprint('admin', __name__)
 
 @admin.route('/confirm-transaction', methods=['POST'])
 @jwt_required()  # Ensure only authenticated admins can access this route
@@ -372,6 +380,9 @@ def confirm_transaction():
     if not transaction:
         return jsonify({"msg": "Transaction not found"}), 404
 
+    # Fetch the user associated with the transaction
+    user = User.query.get(transaction.user_id)
+
     # If confirm is true, update the confirmation status, confirm_date, and admin_id
     if confirm:
         transaction.confirmed = True
@@ -384,20 +395,23 @@ def confirm_transaction():
             amount=transaction.amount,
             start_time=datetime.utcnow(),  # Set the start time to now or a specific time
         )
-        
+
         # Add the new investment to the session
         db.session.add(new_investment)
-        #after confirmation it must be checked if the lavel of the user is needed to be up of down.
-        user.handle_level_change()
+
+        # Check if the user's level needs to change and call `handle_level_change`
+        if user:
+            user.handle_level_change()
+        else:
+            return jsonify({"msg": "User associated with transaction not found"}), 404
 
     else:
         transaction.confirmed = False  # Set confirmation to False if not confirmed
-    
+
     db.session.commit()
 
     # Handle referral bonus logic if applicable
-    user = User.query.get(transaction.user_id)
-    if user.referred_by and Investment.query.filter_by(user_id=transaction.user_id).count() == 1:
+    if user and user.referred_by and Investment.query.filter_by(user_id=transaction.user_id).count() == 1:
         # Award referral bonus to the referrer
         referrer = User.query.get(user.referred_by)
         if referrer:
@@ -411,6 +425,7 @@ def confirm_transaction():
         "confirm_date": transaction.confirm_date,
         "admin_id": transaction.admin_id  # Return the admin ID who confirmed the transaction
     }), 200
+
 @admin.route('/messages', methods=['GET'])
 @jwt_required()
 def get_messages():
