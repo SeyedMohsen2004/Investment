@@ -17,7 +17,9 @@ def create_app():
     JWTManager(app)
 
     app.register_blueprint(auth, url_prefix='/api/v1/auth')
-    app.register_blueprint(investment, url_prefix='/api/v1/investments')  
-    app.register_blueprint(admin, url_prefix='/api/v1/admin') 
-    app.register_blueprint(user_messages, url_prefix='/api/v1/user')  # تغییر به user
+    app.register_blueprint(investment, url_prefix='/api/v1/investments')   
+    app.register_blueprint(user_messages, url_prefix='/api/v1/user')
+    app.register_blueprint(admin, url_prefix='/api/v1/admin')
+    for rule in app.url_map.iter_rules():
+        print(rule)
     return app

@@ -10,7 +10,7 @@ from sqlalchemy import and_
 from datetime import datetime, timedelta
 admin = Blueprint('admin', __name__)
 
-@admin.route('/register', methods=["POST"])
+@admin.route('/register',methods=["POST"])
 def register():
     data = request.get_json()
     data = UserCreateSchema(**data)
@@ -348,14 +348,6 @@ def get_unconfirmed_transactions():
 
     return jsonify({"unconfirmed_transactions": transactions_data}), 200
 
-from flask import Blueprint, request, jsonify
-from app.models import Level, db, Admin, User, User_transaction, Investment, Message
-from app.schemas import UserCreateSchema
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
-from datetime import timedelta, datetime
-from sqlalchemy import and_
-
-admin = Blueprint('admin', __name__)
 
 @admin.route('/confirm-transaction', methods=['POST'])
 @jwt_required()  # Ensure only authenticated admins can access this route
