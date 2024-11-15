@@ -5,12 +5,14 @@ from app.schemas import UserCreateSchema
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
 from app.models import User_transaction, Investment, Message
-from datetime import timedelta
-from sqlalchemy import and_
-from datetime import datetime, timedelta
-admin = Blueprint('admin', __name__)
+from datetime import datetime , timedelta
+from flask_cors import CORS  # Import CORS
 
-@admin.route('/register',methods=["POST"])
+# Initialize Blueprint
+admin = Blueprint('admin', __name__)
+CORS(admin)  # Enable CORS for this blueprint
+
+@admin.route('/register', methods=["POST"])
 def register():
     data = request.get_json()
     data = UserCreateSchema(**data)
@@ -60,7 +62,6 @@ def verify_admin_token():
 
     except NoAuthorizationError:
         return jsonify({"msg": "Missing or invalid token"}), 401
-
 
 @admin.route('/users', methods=['GET'])
 @jwt_required()
