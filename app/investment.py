@@ -170,92 +170,106 @@ def withdraw():
     if not user_id or not amount:
         return jsonify({"msg": "Missing user ID or amount"}), 400
 
-    # Call the withdraw_profit function
-    result = withdraw_profit(user_id, amount)
-    return jsonify(result)
+    # # Call the withdraw_profit function
+    # result = withdraw_profit(user_id, amount)
+    # return jsonify(result)
 
-def withdraw_profit(user_id, amount_to_withdraw):
-    # Fetch all investments for the user, ordered by start_time (oldest first)
-    investments = Investment.query.filter(
-        Investment.user_id == user_id
-    ).order_by(Investment.start_time).all()
+    new_transaction = User_transaction(
+        user_id=user_id,
+        type_tran="withdraw",
+        amount=amount,
+        description="Withdrawal request"
+    )
+    db.session.add(new_transaction)
+    db.session.commit()
 
-    user = User.query.get(user_id)
+    return jsonify({
+        "msg": "Withdrawal request logged successfully. Awaiting admin confirmation.",
+        "transaction_id": new_transaction.id
+    }), 201
 
-    total_withdrawn = 0
-    remaining_amount = amount_to_withdraw
-    transactions = []  # To store transaction history
+# def withdraw_profit(user_id, amount_to_withdraw):
+#     # Fetch all investments for the user, ordered by start_time (oldest first)
+#     investments = Investment.query.filter(
+#         Investment.user_id == user_id
+#     ).order_by(Investment.start_time).all()
 
-    current_time = datetime.utcnow()
+#     user = User.query.get(user_id)
 
-    for investment in investments:
-        if remaining_amount <= 0:
-            break  # Stop if requested amount has been withdrawn
+#     total_withdrawn = 0
+#     remaining_amount = amount_to_withdraw
+#     transactions = []  # To store transaction history
 
-        # Check if a cycle is complete and calculate the profit for that cycle
-        if investment.is_cycle_complete():
-            # Calculate profit since last withdrawal time or start time
-            last_time = investment.last_withdraw_time or investment.start_time
-            full_days_passed = (current_time - last_time).days
-            new_cycles = full_days_passed // investment.cycle_length
-            new_cycle_profit = investment.calculate_withdrawable_profit(new_cycles)
+#     current_time = datetime.utcnow()
+
+#     for investment in investments:
+#         if remaining_amount <= 0:
+#             break  # Stop if requested amount has been withdrawn
+
+#         # Check if a cycle is complete and calculate the profit for that cycle
+#         if investment.is_cycle_complete():
+#             # Calculate profit since last withdrawal time or start time
+#             last_time = investment.last_withdraw_time or investment.start_time
+#             full_days_passed = (current_time - last_time).days
+#             new_cycles = full_days_passed // investment.cycle_length
+#             new_cycle_profit = investment.calculate_withdrawable_profit(new_cycles)
             
-            # Update the withdrawable profit
-            investment.withdrawable_profit += new_cycle_profit
-            investment.last_withdraw_time = current_time  # Update last withdrawal time
+#             # Update the withdrawable profit
+#             investment.withdrawable_profit += new_cycle_profit
+#             investment.last_withdraw_time = current_time  # Update last withdrawal time
 
-        # Withdrawable profit now includes new cycle profit
-        withdrawable_profit = investment.withdrawable_profit
+#         # Withdrawable profit now includes new cycle profit
+#         withdrawable_profit = investment.withdrawable_profit
 
-        if withdrawable_profit > 0:
-            # Determine how much can be withdrawn from this investment's withdrawable profit
-            withdrawable_from_investment = min(remaining_amount, withdrawable_profit)
+#         if withdrawable_profit > 0:
+#             # Determine how much can be withdrawn from this investment's withdrawable profit
+#             withdrawable_from_investment = min(remaining_amount, withdrawable_profit)
             
-            # Withdraw the calculated amount
-            remaining_amount -= withdrawable_from_investment
-            total_withdrawn += withdrawable_from_investment
+#             # Withdraw the calculated amount
+#             remaining_amount -= withdrawable_from_investment
+#             total_withdrawn += withdrawable_from_investment
 
-            # Reduce withdrawable profit and log transaction
-            investment.withdrawable_profit -= withdrawable_from_investment
-            transactions.append({
-                'investment_id': investment.id,
-                'withdrawn_profit': withdrawable_from_investment
-            })
+#             # Reduce withdrawable profit and log transaction
+#             investment.withdrawable_profit -= withdrawable_from_investment
+#             transactions.append({
+#                 'investment_id': investment.id,
+#                 'withdrawn_profit': withdrawable_from_investment
+#             })
 
-            # Update last withdrawal time and partial cycle reset if remaining profit exists
-            if investment.withdrawable_profit == 0:
-                investment.start_time = current_time  # Reset start_time only if all profit is withdrawn
+#             # Update last withdrawal time and partial cycle reset if remaining profit exists
+#             if investment.withdrawable_profit == 0:
+#                 investment.start_time = current_time  # Reset start_time only if all profit is withdrawn
 
-        # Commit updates after each investment is processed
-        db.session.commit()
+#         # Commit updates after each investment is processed
+#         db.session.commit()
 
-    # If the requested withdrawal exceeds withdrawable profit, handle principal withdrawal
-    if remaining_amount > 0:
-        for investment in investments:
-            if remaining_amount <= 0:
-                break
+#     # If the requested withdrawal exceeds withdrawable profit, handle principal withdrawal
+#     if remaining_amount > 0:
+#         for investment in investments:
+#             if remaining_amount <= 0:
+#                 break
 
-            if investment.amount > 0:
-                # Withdraw from the principal
-                withdrawable_from_principal = min(remaining_amount, investment.amount)
-                investment.amount -= withdrawable_from_principal
-                remaining_amount -= withdrawable_from_principal
-                total_withdrawn += withdrawable_from_principal
+#             if investment.amount > 0:
+#                 # Withdraw from the principal
+#                 withdrawable_from_principal = min(remaining_amount, investment.amount)
+#                 investment.amount -= withdrawable_from_principal
+#                 remaining_amount -= withdrawable_from_principal
+#                 total_withdrawn += withdrawable_from_principal
 
-                # Log principal withdrawal transaction
-                transactions.append({
-                    'investment_id': investment.id,
-                    'withdrawn_from_principal': withdrawable_from_principal
-                })
+#                 # Log principal withdrawal transaction
+#                 transactions.append({
+#                     'investment_id': investment.id,
+#                     'withdrawn_from_principal': withdrawable_from_principal
+#                 })
 
-                db.session.commit()
+#                 db.session.commit()
     
-    #NOTE the admin side sould handel this
-    #check if the user level is needed to be change
-    user.handle_level_change()
-    return {
-        "msg": "Withdrawal completed",
-        "total_withdrawn": total_withdrawn,
-        "remaining_amount_to_withdraw": remaining_amount if remaining_amount > 0 else 0,
-        "transactions": transactions
-    }
+#     #NOTE the admin side sould handel this
+#     #check if the user level is needed to be change
+#     user.handle_level_change()
+#     return {
+#         "msg": "Withdrawal completed",
+#         "total_withdrawn": total_withdrawn,
+#         "remaining_amount_to_withdraw": remaining_amount if remaining_amount > 0 else 0,
+#         "transactions": transactions
+#     }

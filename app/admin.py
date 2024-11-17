@@ -408,25 +408,32 @@ def confirm_transaction():
 
     # If confirm is true, update the confirmation status, confirm_date, and admin_id
     if confirm:
+            
         transaction.confirmed = True
         transaction.confirm_date = datetime.utcnow()  # Set confirmation date to current time
         transaction.admin_id = admin.id  # Set the admin who confirmed the transaction
 
-        # Create a new Investment entry based on the transaction details
-        new_investment = Investment(
-            user_id=transaction.user_id,
-            amount=transaction.amount,
-            start_time=datetime.utcnow(),  # Set the start time to now or a specific time
-        )
+        if transaction.type_tran == "deposit":
+            
+            # Create a new Investment entry based on the transaction details
+            new_investment = Investment(
+                user_id=transaction.user_id,
+                amount=transaction.amount,
+                start_time=datetime.utcnow(),  # Set the start time to now or a specific time
+            )
 
-        # Add the new investment to the session
-        db.session.add(new_investment)
+            # Add the new investment to the session
+            db.session.add(new_investment)
 
-        # Check if the user's level needs to change and call `handle_level_change`
-        if user:
-            user.handle_level_change()
-        else:
-            return jsonify({"msg": "User associated with transaction not found"}), 404
+            # Check if the user's level needs to change and call `handle_level_change`
+            if user:
+                user.handle_level_change()
+            else:
+                return jsonify({"msg": "User associated with transaction not found"}), 404
+
+        elif transaction.type_tran == "withdraw":
+            result = withdraw_profit(transaction.user_id, transaction.amount)
+            return jsonify(result)        
 
     else:
         transaction.confirmed = False  # Set confirmation to False if not confirmed
@@ -448,6 +455,96 @@ def confirm_transaction():
         "confirm_date": transaction.confirm_date,
         "admin_id": transaction.admin_id  # Return the admin ID who confirmed the transaction
     }), 200
+
+
+def withdraw_profit(user_id, amount_to_withdraw):
+    # Fetch all investments for the user, ordered by start_time (oldest first)
+    investments = Investment.query.filter(
+        Investment.user_id == user_id
+    ).order_by(Investment.start_time).all()
+
+    user = User.query.get(user_id)
+
+    total_withdrawn = 0
+    remaining_amount = amount_to_withdraw
+    transactions = []  # To store transaction history
+
+    current_time = datetime.utcnow()
+
+    for investment in investments:
+        if remaining_amount <= 0:
+            break  # Stop if requested amount has been withdrawn
+
+        # Check if a cycle is complete and calculate the profit for that cycle
+        if investment.is_cycle_complete():
+            # Calculate profit since last withdrawal time or start time
+            last_time = investment.last_withdraw_time or investment.start_time
+            full_days_passed = (current_time - last_time).days
+            new_cycles = full_days_passed // investment.cycle_length
+            new_cycle_profit = investment.calculate_withdrawable_profit(new_cycles)
+            
+            # Update the withdrawable profit
+            investment.withdrawable_profit += new_cycle_profit
+            investment.last_withdraw_time = current_time  # Update last withdrawal time
+
+        # Withdrawable profit now includes new cycle profit
+        withdrawable_profit = investment.withdrawable_profit
+
+        if withdrawable_profit > 0:
+            # Determine how much can be withdrawn from this investment's withdrawable profit
+            withdrawable_from_investment = min(remaining_amount, withdrawable_profit)
+            
+            # Withdraw the calculated amount
+            remaining_amount -= withdrawable_from_investment
+            total_withdrawn += withdrawable_from_investment
+
+            # Reduce withdrawable profit and log transaction
+            investment.withdrawable_profit -= withdrawable_from_investment
+            transactions.append({
+                'investment_id': investment.id,
+                'withdrawn_profit': withdrawable_from_investment
+            })
+
+            # Update last withdrawal time and partial cycle reset if remaining profit exists
+            if investment.withdrawable_profit == 0:
+                investment.start_time = current_time  # Reset start_time only if all profit is withdrawn
+
+        # Commit updates after each investment is processed
+        db.session.commit()
+
+    # If the requested withdrawal exceeds withdrawable profit, handle principal withdrawal
+    if remaining_amount > 0:
+        for investment in investments:
+            if remaining_amount <= 0:
+                break
+
+            if investment.amount > 0:
+                # Withdraw from the principal
+                withdrawable_from_principal = min(remaining_amount, investment.amount)
+                investment.amount -= withdrawable_from_principal
+                remaining_amount -= withdrawable_from_principal
+                total_withdrawn += withdrawable_from_principal
+
+                # Log principal withdrawal transaction
+                transactions.append({
+                    'investment_id': investment.id,
+                    'withdrawn_from_principal': withdrawable_from_principal
+                })
+
+                db.session.commit()
+    
+    #NOTE the admin side sould handel this
+    #check if the user level is needed to be change
+    user.handle_level_change()
+    return {
+        "msg": "Withdrawal completed",
+        "total_withdrawn": total_withdrawn,
+        "remaining_amount_to_withdraw": remaining_amount if remaining_amount > 0 else 0,
+        "transactions": transactions
+    }
+
+
+
 
 @admin.route('/messages', methods=['GET'])
 @jwt_required()
