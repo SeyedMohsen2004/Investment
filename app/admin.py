@@ -7,45 +7,11 @@ from flask_jwt_extended.exceptions import NoAuthorizationError
 from app.models import User_transaction, Investment, Message
 from datetime import datetime , timedelta
 from flask_cors import CORS  # Import CORS
+from pydantic import ValidationError
 
 # Initialize Blueprint
 admin = Blueprint('admin', __name__)
 CORS(admin)  # Enable CORS for this blueprint
-
-@admin.route('/register', methods=["POST"])
-def register():
-    data = request.get_json()
-    data = UserCreateSchema(**data)
-    username = data.username
-    password = data.password
-
-    if Admin.query.filter_by(username=username).first():
-        return jsonify({"msg": "Username already exists"}), 400
-
-    last_date_log = datetime.utcnow().date()  # Set a default or use appropriate value
-    new_admin = Admin(username=username, password=password, last_date_log=last_date_log)
-
-    db.session.add(new_admin)
-    db.session.commit()
-
-    access_token = create_access_token(identity=new_admin.id)
-    return jsonify({"msg": "Admin created successfully", "access_token": access_token}), 201
-
-
-@admin.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    data = UserCreateSchema(**data)
-    username = data.username
-    password = data.password
-
-    admin = Admin.query.filter_by(username=username).first()
-
-    if admin and admin.check_password(password):
-        access_token = create_access_token(identity=admin.id)
-        return jsonify({"msg": "Login successful", "access_token": access_token}), 200
-
-    return jsonify({"msg": "Invalid username or password"}), 401
 
 def verify_admin_token():
     try:
@@ -62,6 +28,70 @@ def verify_admin_token():
 
     except NoAuthorizationError:
         return jsonify({"msg": "Missing or invalid token"}), 401
+
+
+@admin.route('/register', methods=["POST"])
+def register():
+    try:
+        # Parse and validate the input data using Pydantic schema
+        data = request.get_json()
+        data = UserCreateSchema(**data)
+        username = data.username
+        password = data.password
+
+        # Check if username already exists
+        if Admin.query.filter_by(username=username).first():
+            return jsonify({"msg": "Username already exists"}), 400
+
+        # Create a new admin
+        last_date_log = datetime.utcnow().date()  # Set the default value
+        new_admin = Admin(username=username, password=password, last_date_log=last_date_log)
+
+        # Add and commit the new admin to the database
+        db.session.add(new_admin)
+        db.session.commit()
+
+        # Generate an access token
+        access_token = create_access_token(identity=new_admin.id)
+        return jsonify({"msg": "Admin created successfully", "access_token": access_token}), 201
+
+    except ValidationError as ve:
+        # Handle Pydantic validation errors
+        return jsonify({"msg": "Validation Error", "errors": ve.errors()}), 422
+
+    except Exception as e:
+        # Catch all other exceptions
+        return jsonify({"msg": "An error occurred", "error": str(e)}), 500
+
+
+@admin.route('/login', methods=['POST'])
+def login():
+    try:
+        # Parse and validate the input data using Pydantic schema
+        data = request.get_json()
+        data = UserCreateSchema(**data)
+        username = data.username
+        password = data.password
+
+        # Fetch the admin from the database
+        admin = Admin.query.filter_by(username=username).first()
+
+        # Validate password and generate token if successful
+        if admin and admin.check_password(password):
+            access_token = create_access_token(identity=admin.id)
+            return jsonify({"msg": "Login successful", "access_token": access_token}), 200
+
+        # Invalid credentials
+        return jsonify({"msg": "Invalid username or password"}), 401
+
+    except ValidationError as ve:
+        # Handle Pydantic validation errors
+        return jsonify({"msg": "Validation Error", "errors": ve.errors()}), 422
+
+    except Exception as e:
+        # Catch all other exceptions
+        return jsonify({"msg": "An error occurred", "error": str(e)}), 500
+
 
 @admin.route('/users', methods=['GET'])
 @jwt_required()
