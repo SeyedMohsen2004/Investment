@@ -8,11 +8,12 @@ from app.auth import auth
 from app.investment import investment
 from app.admin import admin 
 from app.userMessage import user_messages  
+from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(config)
-
+    CORS(app)
     db.init_app(app)
     JWTManager(app)
 

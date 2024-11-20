@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 # Initialize Blueprint
 admin = Blueprint('admin', __name__)
-CORS(admin)  # Enable CORS for this blueprint
+# CORS(admin)  # Enable CORS for this blueprint
 
 def verify_admin_token():
     try:
@@ -625,7 +625,7 @@ def delete_message(message_id):
 @jwt_required()
 def get_all_investments():
     admin = verify_admin_token()
-    if isinstance(admin, dict):  
+    if isinstance(admin, tuple):  
         return admin
     
     investments = Investment.query.all()
