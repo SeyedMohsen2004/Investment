@@ -14,7 +14,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(config)
     from flask_cors import CORS
-
+    CORS(app)
     db.init_app(app)
     JWTManager(app)
 
