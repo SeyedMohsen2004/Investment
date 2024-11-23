@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 # Initialize Blueprint
 admin = Blueprint('admin', __name__)
-# CORS(admin)  # Enable CORS for this blueprint
+
 
 def verify_admin_token():
     try:

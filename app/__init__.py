@@ -13,7 +13,8 @@ from flask_cors import CORS
 def create_app():
     app = Flask(__name__)
     app.config.from_object(config)
-    CORS(app)
+    from flask_cors import CORS
+
     db.init_app(app)
     JWTManager(app)
 
@@ -23,4 +24,6 @@ def create_app():
     app.register_blueprint(admin, url_prefix='/api/v1/admin')
     # for rule in app.url_map.iter_rules():
     #     print(rule)
+    CORS(app, resources={r"/*": {"origins": "*"}})
+
     return app
