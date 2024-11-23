@@ -101,7 +101,7 @@ def profile():
     } if current_level else {"level_id": None, "profit_multiplier": 0}
 
     # Use referred_users_rel to get users referred by the current user
-    referred_users = [{'id': u.id, 'username': u.username} for u in user.referred_users_rel] if user.referred_users_rel else []
+    referred_users = [{'id': u.id, 'username': u.username, 'current_level_id': u.current_level_id} for u in user.referred_users_rel] if user.referred_users_rel else []
 
     response = {
         
