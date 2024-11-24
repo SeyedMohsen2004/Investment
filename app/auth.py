@@ -93,12 +93,15 @@ def profile():
         return jsonify({"msg": "User not found"}), 404
     
     first_investment_amount = User_transaction.get_first_investment_amount(current_user_id)
-
+    #NOTE: instead of this function i can use user.current_level_id?
     current_level = user.calculate_level()
     level_info = {
         "level_id": current_level.id,
         "profit_multiplier": current_level.profit_multiplier
     } if current_level else {"level_id": None, "profit_multiplier": 0}
+
+    # Check if the user is active
+    is_active = user.current_level_id > 0
 
     # Use referred_users_rel to get users referred by the current user
     referred_users = [{'id': u.id, 'username': u.username, 'current_level_id': u.current_level_id} for u in user.referred_users_rel] if user.referred_users_rel else []
@@ -110,7 +113,8 @@ def profile():
         "referred_users": referred_users,
         "referral_bonus": user.referral_bonus,
         "first_investment_amount": first_investment_amount,
-        "level_info": level_info
+        "level_info": level_info,
+        "is_active": is_active
         
     }
     return jsonify(response), 200
