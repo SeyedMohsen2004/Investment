@@ -8,7 +8,7 @@ from app.models import User_transaction, Investment, Message
 from datetime import datetime , timedelta
 from flask_cors import CORS  # Import CORS
 from pydantic import ValidationError
-
+from sqlalchemy import func
 # Initialize Blueprint
 admin = Blueprint('admin', __name__)
  
@@ -93,7 +93,38 @@ def login():
         # Catch all other exceptions
         return jsonify({"msg": "An error occurred", "error": str(e)}), 500
 
+@admin.route('/total-informations', methods=['GET'])
+@jwt_required()
+def total_investment():
+    # Verify if the token is from a valid admin
+    admin = verify_admin_token()
+    if isinstance(admin, tuple):
+        return admin  # Return the error response if token verification failed
 
+    # Calculate the total amount invested across all investments
+    total_investment_amount = db.session.query(func.sum(Investment.amount)).scalar() or 0  # Handle None if no investments
+
+    # Fetch all investments to calculate profit and locked profit
+    investments = Investment.query.all()
+
+    # Initialize accumulators for total profit and locked profit
+    total_profit = 0
+    total_locked_profit = 0
+
+    # Iterate through each investment and calculate profit and locked profit
+    for investment in investments:
+        profit_data = investment.get_profit()
+        total_profit += profit_data['profit']
+        total_locked_profit += profit_data['locked_profit']
+
+    # Return the total amount, profit, and locked profit as a JSON response
+    return jsonify({
+        "total_investment_amount": total_investment_amount,
+        "total_profit": total_profit,
+        "total_locked_profit": total_locked_profit
+    }), 200
+    
+    
 @admin.route('/users', methods=['GET'])
 @jwt_required()
 def admin_users():
