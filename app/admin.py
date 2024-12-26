@@ -387,6 +387,33 @@ def update_level(level_id):
 
     return jsonify({"msg": "Level updated successfully", "level_id": level.id}), 200
 
+@admin.route('/level/delete/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_level_by_id(id):
+    """
+    Delete a specific level from the level table by ID.
+    """
+    try:
+        # Verify if the request is made by an admin
+        admin = verify_admin_token()
+        if isinstance(admin, tuple):  # If verification failed, return the error response
+            return admin
+
+        # Fetch the level by ID
+        level = Level.query.filter_by(id=id).first()
+
+        if not level:
+            return jsonify({"msg": "Level not found"}), 404
+
+        # Delete the level
+        db.session.delete(level)
+        db.session.commit()
+
+        return jsonify({"msg": "Level deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"msg": "An error occurred", "error": str(e)}), 500
+
 
 @admin.route('/unconfirmed-transactions', methods=['GET'])
 def get_unconfirmed_transactions():
@@ -575,7 +602,106 @@ def withdraw_profit(user_id, amount_to_withdraw):
         "transactions": transactions
     }
 
+@admin.route('/unc_tran/<int:id>', methods=['GET'])
+@jwt_required()
+def get_user_info_by_transaction_id(id):
+    """
+    Retrieve user information based on the user_transaction ID.
+    """
+    try:
+        # Verify if the request is made by an admin
+        admin = verify_admin_token()
+        if isinstance(admin, tuple):  # If verification failed, return the error response
+            return admin
 
+        # Fetch the transaction by ID
+        transaction = User_transaction.query.filter_by(id=id).first()
+        if not transaction:
+            return jsonify({"msg": "Transaction not found"}), 404
+
+        # Fetch the user associated with the transaction
+        user = User.query.filter_by(id=transaction.user_id).first()
+        if not user:
+            return jsonify({"msg": "User not found"}), 404
+
+        # Gather required information
+        username = user.username
+        active_users = user.get_active_referred_users()
+        current_level = user.current_level.id if user.current_level else None
+        total_amount = db.session.query(func.sum(Investment.amount))\
+            .filter(Investment.user_id == user.id).scalar() or 0
+
+        # Prepare the response
+        user_info = {
+            "username": username,
+            "active_users": active_users,
+            "current_level": current_level,
+            "total_investment_amount": total_amount
+        }
+
+        return jsonify(user_info), 200
+
+    except Exception as e:
+        return jsonify({"msg": "An error occurred", "error": str(e)}), 500
+
+
+
+@admin.route('/unc_tran/delete/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_unconfirmed_transaction_by_id(id):
+    """
+    Delete a specific unconfirmed transaction by ID.
+    """
+    try:
+        # Verify if the request is made by an admin
+        admin = verify_admin_token()
+        if isinstance(admin, tuple):  # If verification failed, return the error response
+            return admin
+
+        # Fetch the transaction by ID where confirmed is False
+        transaction = User_transaction.query.filter_by(id=id, confirmed=False).first()
+
+        if not transaction:
+            return jsonify({"msg": "Transaction not found or already confirmed"}), 404
+
+        # Delete the transaction
+        db.session.delete(transaction)
+        db.session.commit()
+
+        return jsonify({"msg": "Transaction deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"msg": "An error occurred", "error": str(e)}), 500
+
+
+@admin.route('/unc_tran/delete', methods=['DELETE'])
+@jwt_required()
+def delete_all_unconfirmed_transactions():
+    """
+    Delete all unconfirmed transactions from the table.
+    """
+    try:
+        # Verify if the request is made by an admin
+        admin = verify_admin_token()
+        if isinstance(admin, tuple):  # If verification failed, return the error response
+            return admin
+
+        # Fetch all transactions where confirmed is False
+        transactions = User_transaction.query.filter_by(confirmed=False).all()
+
+        if not transactions:
+            return jsonify({"msg": "No unconfirmed transactions found"}), 404
+
+        # Delete all fetched transactions
+        for transaction in transactions:
+            db.session.delete(transaction)
+
+        db.session.commit()
+
+        return jsonify({"msg": "All unconfirmed transactions deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"msg": "An error occurred", "error": str(e)}), 500
 
 
 @admin.route('/messages', methods=['GET'])
