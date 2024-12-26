@@ -156,7 +156,7 @@ def admin_users():
     # Prepare the list to hold user data with investment information
     users_data = []
 
-    # Loop through each user and calculate their investments and profits
+    # Loop through each user and calculate their investments, profits, and active users
     for user in users:
         # Query all investments for this user
         investments = Investment.query.filter_by(user_id=user.id).all()
@@ -171,15 +171,17 @@ def admin_users():
             # Get the number of days the investment has been active
             days_active = (current_time - investment.start_time).days
 
-
-# Calculate the profits based on the duration of the investment
+            # Calculate the profits based on the duration of the investment
             profit_data = investment.get_profit()
             if days_active < 30:
                 total_profit_less_than_30_days += profit_data['profit']
             else:
                 total_profit_more_than_30_days += profit_data['profit']
 
-        # Prepare the user data with investment and profit details
+        # Get the number of active referred users
+        active_users = user.get_active_referred_users()
+
+        # Prepare the user data with investment, profit, and active user details
         user_data = {
             "id": user.id,
             "username": user.username,
@@ -188,7 +190,8 @@ def admin_users():
             "referral_bonus": user.referral_bonus,
             "total_amount_invested": total_amount_of_investments,  # Sum of all investments for the user
             "total_profit_less_than_30_days": total_profit_less_than_30_days,  # Profits for investments < 30 days
-            "total_profit_more_than_30_days": total_profit_more_than_30_days  # Profits for investments >= 30 days
+            "total_profit_more_than_30_days": total_profit_more_than_30_days,  # Profits for investments >= 30 days
+            "active_referred_users": active_users  # Number of active referred users
         }
 
         # Add the user data to the list
@@ -198,7 +201,6 @@ def admin_users():
     return jsonify({
         "users": users_data
     }), 200
-
 
 @admin.route('/users/<int:id>', methods=['GET'])
 @jwt_required()
