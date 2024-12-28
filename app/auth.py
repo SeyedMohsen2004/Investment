@@ -17,11 +17,16 @@ def register():
 
         username = user_data.username
         password = user_data.password
+        wallet_address = data.get('wallet_address')  # Accept wallet address from request
         referral_code = data.get('referral_code')  # Accept referral code from request
 
         # Check if username already exists
         if User.query.filter_by(username=username).first():
             return jsonify({"msg": "Username already exists"}), 400
+
+        # Check if wallet address already exists
+        if User.query.filter_by(wallet_address=wallet_address).first():
+            return jsonify({"msg": "Wallet address already exists"}), 400
 
         # Check if referral code exists and is valid
         referrer = None
@@ -31,7 +36,7 @@ def register():
                 return jsonify({"msg": "Invalid referral code"}), 400
 
         # Create new user
-        new_user = User(username=username)
+        new_user = User(username=username, wallet_address=wallet_address)
         new_user.set_password(password)  # Make sure to securely store the password
         new_user.generate_referral_code()
 
@@ -101,7 +106,7 @@ def profile():
     } if current_level else {"level_id": None, "profit_multiplier": 0}
 
     # Check if the user is active
-    is_active = user.current_level_id > 0
+    is_active = user.current_level_id > 0 
 
     # Use referred_users_rel to get users referred by the current user
     referred_users = [{'id': u.id, 'username': u.username, 'current_level_id': u.current_level_id} for u in user.referred_users_rel] if user.referred_users_rel else []
@@ -109,13 +114,13 @@ def profile():
     response = {
         
         "username": user.username,
+        "wallet_address": user.wallet_address,
         "referral_code": user.referral_code,
         "referred_users": referred_users,
         "referral_bonus": user.referral_bonus,
         "first_investment_amount": first_investment_amount,
         "level_info": level_info,
         "is_active": is_active
-        
     }
     return jsonify(response), 200
 
