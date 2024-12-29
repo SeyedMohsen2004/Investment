@@ -18,8 +18,9 @@ class User(db.Model):
     referred_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     referrer = db.relationship('User', remote_side=[id], backref=db.backref('referred_users_rel'))
     referral_bonus = db.Column(db.Float, default=0.0)  # Add this line for referral bonus
-    current_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=True)
-    previous_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=True) 
+    current_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=False, default=0)
+    previous_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=True)
+    wallet_address = db.Column(db.String(255), unique=True, nullable=False)
     
     current_level = db.relationship('Level', foreign_keys=[current_level_id], backref=db.backref('current_level_users', lazy=True))
     previous_level = db.relationship('Level', foreign_keys=[previous_level_id], backref=db.backref('previous_level_users', lazy=True))
@@ -181,7 +182,7 @@ class Investment(db.Model):
                 'profit': withdrawable_profit,
                 'locked_profit': locked_profit
             }
-
+    #NOTE in here if the 30 days and if 36 days are equal then in investment we have erorr on profit
     def is_cycle_complete(self):
         # Check if a full cycle has completed
         current_time = datetime.utcnow()
@@ -191,9 +192,13 @@ class Investment(db.Model):
 
 
     def calculate_withdrawable_profit(self, full_cycles_completed):
-        # Example: calculate based on daily profit of 0.001%
-        daily_rate = 0.01 
-        profit_per_cycle = self.amount * daily_rate * self.cycle_length  # Profit for one full cycle
+
+        level = self.user.calculate_level()
+        daily_profit_rate = 0.01  # Default daily profit rate
+
+        if level:
+            daily_profit_rate *= level.profit_multiplier
+        profit_per_cycle = self.amount * daily_profit_rate * self.cycle_length  # Profit for one full cycle
         return profit_per_cycle * full_cycles_completed
 
 
@@ -257,3 +262,15 @@ class Message(db.Model):
     parent_message = db.relationship('Message', remote_side=[message_id], backref='replies')  
     user = db.relationship('User', backref=db.backref('messages', lazy=True))  
     admin = db.relationship('Admin', backref=db.backref('messages', lazy=True))  
+
+class ReferralProfit(db.Model):
+    __tablename__ = 'referral_profit'
+    id = db.Column(db.Integer, primary_key=True)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # User earning the profit
+    referred_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # User generating the profit
+    profit_amount = db.Column(db.Float, nullable=False)  # Calculated referral profit
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # When the profit was recorded
+
+    # Relationships
+    referrer = db.relationship('User', foreign_keys=[referrer_id], backref=db.backref('referral_profits', lazy=True))
+    referred_user = db.relationship('User', foreign_keys=[referred_user_id], backref=db.backref('generated_profits', lazy=True))

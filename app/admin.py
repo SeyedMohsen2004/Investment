@@ -1,6 +1,6 @@
 # Seyed Mohsen Moosavi & Ali Amri
 from flask import Blueprint, request, jsonify
-from app.models import Level, db, Admin, User
+from app.models import Level, ReferralProfit, db, Admin, User
 from app.schemas import UserCreateSchema
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from flask_jwt_extended.exceptions import NoAuthorizationError
@@ -506,7 +506,7 @@ def confirm_transaction():
         # Award referral bonus to the referrer
         referrer = User.query.get(user.referred_by)
         if referrer:
-            referrer.referral_bonus += 5  # Add the bonus to the referrer's referral bonus field
+            referrer.referral_bonus += 3  # Add the bonus to the referrer's referral bonus field
             db.session.commit()
 
     return jsonify({
@@ -532,6 +532,7 @@ def withdraw_profit(user_id, amount_to_withdraw):
 
     current_time = datetime.utcnow()
 
+    # Step 1: Withdraw from the profit of invested money
     for investment in investments:
         if remaining_amount <= 0:
             break  # Stop if requested amount has been withdrawn
@@ -573,7 +574,36 @@ def withdraw_profit(user_id, amount_to_withdraw):
         # Commit updates after each investment is processed
         db.session.commit()
 
-    # If the requested withdrawal exceeds withdrawable profit, handle principal withdrawal
+    # Step 2: Withdraw from referral profits if remaining amount exists
+    if remaining_amount > 0:
+        referral_profits = ReferralProfit.query.filter(
+            ReferralProfit.referrer_id == user_id
+        ).order_by(ReferralProfit.id).all()
+
+        for referral_profit in referral_profits:
+            if remaining_amount <= 0:
+                break  # Stop if the requested amount has been withdrawn
+
+            if referral_profit.profit_amount > 0:
+                # Determine how much can be withdrawn from this referral profit
+                withdrawable_from_referral = min(remaining_amount, referral_profit.profit_amount)
+                
+                # Withdraw the calculated amount
+                remaining_amount -= withdrawable_from_referral
+                total_withdrawn += withdrawable_from_referral
+
+                # Update the referral profit record
+                referral_profit.profit_amount = round(
+                    referral_profit.profit_amount - withdrawable_from_referral, 4
+                )
+                transactions.append({
+                    'referral_profit_id': referral_profit.id,
+                    'withdrawn_referral_profit': withdrawable_from_referral
+                })
+
+                db.session.commit()
+
+    # Step 3: Withdraw from the principal if remaining amount exists
     if remaining_amount > 0:
         for investment in investments:
             if remaining_amount <= 0:
@@ -594,16 +624,15 @@ def withdraw_profit(user_id, amount_to_withdraw):
 
                 db.session.commit()
     
-    #NOTE the admin side sould handel this
-    #check if the user level is needed to be change
+    # Handle user level changes if necessary
     user.handle_level_change()
+
     return {
         "msg": "Withdrawal completed",
         "total_withdrawn": total_withdrawn,
         "remaining_amount_to_withdraw": remaining_amount if remaining_amount > 0 else 0,
         "transactions": transactions
     }
-
 @admin.route('/unc_tran/<int:id>', methods=['GET'])
 @jwt_required()
 def get_user_info_by_transaction_id(id):

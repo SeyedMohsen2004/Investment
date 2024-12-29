@@ -2,13 +2,15 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import Investment, User_transaction, db, Level
+from app.scheduler import update_referral_profits
+from app.utils import get_total_referral_profit, get_referral_profit_history
 from datetime import datetime
 from app.models import User
 
 investment = Blueprint('investment', __name__)
 
 def generate_wallet_address():
-    return "TGwEZZC73VAefZrETHeLYKCvQn1GY6pmQa"  # Placeholder for generated wallet address
+    return "TYkKWFnNBsKLsqopLktWfKY9PQm7vE5SJw"  # Placeholder for generated wallet address
 
 
 # Route to create an investment
@@ -121,20 +123,21 @@ def get_total_profit():
 
     for investment in investments:
         # Check if the cycle is complete
-        if investment.is_cycle_complete():
-            # Add withdrawable profit for completed cycles
+        for investment in investments:
             result = investment.get_profit()
+            
+            # Accumulate profits and amounts
             total_profit += result['profit']
+            locked_profit += result['locked_profit']
             total_amount += result['amount']
-        else:
-            # Add locked profit for incomplete cycles
-            locked_profit += investment.get_profit()['locked_profit']
-            total_amount += investment.get_profit()['amount']
+            
+    referral_profit = get_total_referral_profit(current_user_id)
 
     return jsonify({
         "total_amount": total_amount,
         "withdrawable_profit": total_profit,
         "locked_profit": locked_profit,
+        "referral_profit": referral_profit,
         "total_investments": len(investments)
     }), 200
 
@@ -188,88 +191,32 @@ def withdraw():
         "transaction_id": new_transaction.id
     }), 201
 
-# def withdraw_profit(user_id, amount_to_withdraw):
-#     # Fetch all investments for the user, ordered by start_time (oldest first)
-#     investments = Investment.query.filter(
-#         Investment.user_id == user_id
-#     ).order_by(Investment.start_time).all()
+#NOTE in the update we can have this route
+@investment.route('/referral-profit', methods=['GET'])
+@jwt_required()
+def get_referral_profit():
+    current_user_id = get_jwt_identity()
 
-#     user = User.query.get(user_id)
+    # Fetch total referral profit
+    total_profit = get_total_referral_profit(current_user_id)
 
-#     total_withdrawn = 0
-#     remaining_amount = amount_to_withdraw
-#     transactions = []  # To store transaction history
+    # Fetch referral profit history
+    profit_history = get_referral_profit_history(current_user_id)
 
-#     current_time = datetime.utcnow()
+    return jsonify({
+        'total_referral_profit': total_profit,
+        'profit_history': profit_history
+    }), 200
 
-#     for investment in investments:
-#         if remaining_amount <= 0:
-#             break  # Stop if requested amount has been withdrawn
+#this is for updating the referral profit tabele
+@investment.route('/test-update-referral-profits', methods=['GET'])
+@jwt_required()
+def test_update_referral_profits():
+    try:
+        update_referral_profits()  # Manually call the background function
+        return jsonify({"msg": "Referral profits updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"msg": f"Error: {str(e)}"}), 500
 
-#         # Check if a cycle is complete and calculate the profit for that cycle
-#         if investment.is_cycle_complete():
-#             # Calculate profit since last withdrawal time or start time
-#             last_time = investment.last_withdraw_time or investment.start_time
-#             full_days_passed = (current_time - last_time).days
-#             new_cycles = full_days_passed // investment.cycle_length
-#             new_cycle_profit = investment.calculate_withdrawable_profit(new_cycles)
-            
-#             # Update the withdrawable profit
-#             investment.withdrawable_profit += new_cycle_profit
-#             investment.last_withdraw_time = current_time  # Update last withdrawal time
 
-#         # Withdrawable profit now includes new cycle profit
-#         withdrawable_profit = investment.withdrawable_profit
 
-#         if withdrawable_profit > 0:
-#             # Determine how much can be withdrawn from this investment's withdrawable profit
-#             withdrawable_from_investment = min(remaining_amount, withdrawable_profit)
-            
-#             # Withdraw the calculated amount
-#             remaining_amount -= withdrawable_from_investment
-#             total_withdrawn += withdrawable_from_investment
-
-#             # Reduce withdrawable profit and log transaction
-#             investment.withdrawable_profit -= withdrawable_from_investment
-#             transactions.append({
-#                 'investment_id': investment.id,
-#                 'withdrawn_profit': withdrawable_from_investment
-#             })
-
-#             # Update last withdrawal time and partial cycle reset if remaining profit exists
-#             if investment.withdrawable_profit == 0:
-#                 investment.start_time = current_time  # Reset start_time only if all profit is withdrawn
-
-#         # Commit updates after each investment is processed
-#         db.session.commit()
-
-#     # If the requested withdrawal exceeds withdrawable profit, handle principal withdrawal
-#     if remaining_amount > 0:
-#         for investment in investments:
-#             if remaining_amount <= 0:
-#                 break
-
-#             if investment.amount > 0:
-#                 # Withdraw from the principal
-#                 withdrawable_from_principal = min(remaining_amount, investment.amount)
-#                 investment.amount -= withdrawable_from_principal
-#                 remaining_amount -= withdrawable_from_principal
-#                 total_withdrawn += withdrawable_from_principal
-
-#                 # Log principal withdrawal transaction
-#                 transactions.append({
-#                     'investment_id': investment.id,
-#                     'withdrawn_from_principal': withdrawable_from_principal
-#                 })
-
-#                 db.session.commit()
-    
-#     #NOTE the admin side sould handel this
-#     #check if the user level is needed to be change
-#     user.handle_level_change()
-#     return {
-#         "msg": "Withdrawal completed",
-#         "total_withdrawn": total_withdrawn,
-#         "remaining_amount_to_withdraw": remaining_amount if remaining_amount > 0 else 0,
-#         "transactions": transactions
-#     }

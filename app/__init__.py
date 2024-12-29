@@ -8,6 +8,7 @@ from app.auth import auth
 from app.investment import investment
 from app.admin import admin 
 from app.userMessage import user_messages  
+from app.scheduler import start_scheduler
 from flask_cors import CORS
 
 def create_app():
@@ -17,6 +18,9 @@ def create_app():
     CORS(app)
     db.init_app(app)
     JWTManager(app)
+    
+    #this is for referral profit calculation
+    start_scheduler()
 
     app.register_blueprint(auth, url_prefix='/api/v1/auth')
     app.register_blueprint(investment, url_prefix='/api/v1/investments')   
