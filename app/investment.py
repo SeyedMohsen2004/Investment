@@ -115,7 +115,13 @@ def get_total_profit():
     investments = Investment.query.filter_by(user_id=current_user_id).all()
 
     if not investments: 
-        return jsonify({"msg": "No investments found"}), 404
+        return jsonify({
+            "total_profit": 0.0,
+            "total_amount": 0.0,
+            "locked_profit": 0.0,
+            "referral_profit": 0.0,
+            "msg": "No investments found"
+        }), 200
 
     total_profit = 0
     total_amount = 0
@@ -138,7 +144,8 @@ def get_total_profit():
         "withdrawable_profit": total_profit,
         "locked_profit": locked_profit,
         "referral_profit": referral_profit,
-        "total_investments": len(investments)
+        "total_investments": len(investments),
+        "msg": "Success"
     }), 200
 
 
