@@ -1,4 +1,3 @@
-# Seyed Mohsen Moosavi & Ali Amri
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import random

@@ -1,4 +1,3 @@
-# Seyed Mohsen Moosavi & Ali Amri
 # app/__init__.py
 from flask import Flask
 from flask_jwt_extended import JWTManager  # type: ignore

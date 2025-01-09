@@ -1,4 +1,3 @@
-# Seyed Mohsen Moosavi & Ali Amri
 from flask import Blueprint, request, jsonify
 from app.models import Level, ReferralProfit, db, Admin, User
 from app.schemas import UserCreateSchema
@@ -12,7 +11,6 @@ from sqlalchemy import func
 # Initialize Blueprint
 admin = Blueprint('admin', __name__)
  
-#Hi
 
 def verify_admin_token():
     try:
@@ -419,24 +417,23 @@ def delete_level_by_id(id):
 
 @admin.route('/unconfirmed-transactions', methods=['GET'])
 def get_unconfirmed_transactions():
-    # Verify if the token is from a valid admin
     admin = verify_admin_token()
     if isinstance(admin, tuple):
-        return admin  # Return the error response if token verification failed
+        return admin  
 
-    # Query to get all unconfirmed transactions
     unconfirmed_transactions = User_transaction.query.filter_by(confirmed=False).all()
 
-    # Prepare the response data
-    transactions_data = [{
-        "id": transaction.id,
-        "type": transaction.type_tran,
-        "amount": transaction.amount,
-        "description": transaction.description,
-        "user_id": transaction.user_id,
-        "request_date": transaction.request_date,
-        "hash_code": transaction.hash_code 
-    } for transaction in unconfirmed_transactions]
+    transactions_data = []
+    for transaction in unconfirmed_transactions:
+        transactions_data.append({
+            "id": transaction.id,
+            "type": transaction.type_tran,
+            "amount": transaction.amount,
+            "description": transaction.description,
+            "username": transaction.user.username if transaction.user else None,  # Get username from the user relationship
+            "request_date": transaction.request_date,
+            "hash_code": transaction.hash_code 
+        })
 
     return jsonify({"unconfirmed_transactions": transactions_data}), 200
 
