@@ -17,7 +17,7 @@ class User(db.Model):
     referred_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     referrer = db.relationship('User', remote_side=[id], backref=db.backref('referred_users_rel'))
     referral_bonus = db.Column(db.Float, default=0.0)  # Add this line for referral bonus
-    current_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=False, default=0)
+    current_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=False, default=1)
     previous_level_id = db.Column(db.Integer, db.ForeignKey('level.id'), nullable=True)
     wallet_address = db.Column(db.String(255), unique=True, nullable=False)
     
